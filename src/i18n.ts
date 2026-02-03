@@ -1,0 +1,147 @@
+const translations: Record<string, string> = {
+  // General
+  'Import Files': '导入文件',
+  'Export Diaries': '导出日记',
+  'Export Scope': '导出范围',
+  'Current Diary': '当前日记',
+  'All Diaries': '所有日记',
+  'Export Format': '导出格式',
+  'Note: Word and PDF formats currently support single diary export only.': '注意：Word 和 PDF 格式目前仅支持单条日记导出。',
+  'No diaries to export': '没有可导出的日记',
+  'Exporting...': '导出中...',
+  'Import diaries and folders': '导入日记和文件夹',
+  'Export current diary': '导出当前日记',
+  'Import files (JSON/MD/HTML/TXT/DOCX/PDF)': '导入文件（支持 JSON/MD/HTML/TXT/DOCX/PDF）',
+  'Export all diaries': '导出所有日记',
+  'Cancel': '取消',
+  'Save': '保存',
+
+  // Sidebar / Calendar
+  'Calendar View': '日历视图',
+  'Calendar': '日历',
+  'New Diary': '新建日记',
+  'No diaries on this date': '该日期没有日记',
+  'Create one': '创建一个',
+  'Change Diary Date': '修改日记日期',
+  'Change Date': '更改日期',
+
+  // Folders & Tags
+  'New Folder': '新建文件夹',
+  'Create New Folder': '创建新文件夹',
+  'Rename Folder': '重命名文件夹',
+  'Delete Folder': '删除文件夹',
+  'Delete': '删除',
+  'Edit': '编辑',
+  'Rename': '重命名',
+  'Delete Diary': '删除日记',
+  'Are you sure you want to delete this folder? Diaries in this folder will be moved to "All Diaries".': '确认删除此文件夹吗？该文件夹中的日记将移动到「所有日记」。',
+
+  'Tags': '标签',
+  'Change color': '更改颜色',
+  'Rename Tag': '重命名标签',
+  'Merge Tags': '合并标签',
+  'Choose Tag Color': '选择标签颜色',
+  'Folders': '文件夹',
+  'Folder name': '文件夹名称',
+  'Create': '创建',
+  'Diaries': '日记',
+  'Search diaries...': '搜索日记...',
+  'No diaries found': '未找到匹配的日记',
+  'No diaries yet. Create one!': '暂无日记，创建一个吧！',
+  'No content': '无内容',
+  'Are you sure you want to delete this diary? This action cannot be undone.': '确认删除此日记吗？此操作不可撤销。',
+  'Clear': '清除',
+  'Merge': '合并',
+  'No tags yet': '暂无标签',
+  'New tag name': '新标签名',
+  'New merged tag name': '新合并标签名',
+  'Select tags to merge (minimum 2):': '选择要合并的标签（至少两个）：',
+
+  // Layout / Editor
+  'Untitled': '未命名',
+  'Add tags (press Enter)...': '添加标签（回车确认）...',
+  'No diary selected': '未选择日记',
+  'Select a diary from the list or create a new one': '从列表中选择日记或创建一个新日记',
+  'Export All Diaries': '导出所有日记',
+  'Last edited:': '最后编辑：',
+  'words': '字',
+
+  // Export / Import modal labels
+  'Supported formats': '支持的格式',
+  'Files': '文件',
+  'Files to import': '要导入的文件',
+  'Replace existing data (instead of merging)': '替换现有数据（而非合并）',
+  'Ready': '就绪',
+  'Parsing...': '解析中...',
+  'Unsupported or failed to parse': '不支持或解析失败',
+  'Error': '错误',
+  'Unable to parse .docx file content': '无法解析 .docx 文件内容',
+  'Unable to parse PDF file content': '无法解析 PDF 文件内容',
+  '请选择要导入的文件': '请选择要导入的文件',
+  'Imported diaries successfully': '导入日记成功',
+  'Imported folders successfully': '导入文件夹成功',
+  'Imported successfully': '导入完成',
+  'Importing...': '导入中...',
+  'Import': '导入',
+  'Export': '导出',
+  'Export All Data': '导出全部数据',
+  'Backups': '备份记录',
+  'No backups found': '未找到备份',
+  'Backup created at': '备份时间：',
+  'Restore backup': '还原备份',
+  'Download backup': '下载备份',
+  'This will replace existing data. Are you sure?': '这将替换现有数据，确定要继续吗？',
+
+  // Formats & Export messages
+  'Markdown': 'Markdown',
+  'Word': 'Word',
+  'Export all': '导出所有',
+  'Exporting all diaries to Word format will create separate files. Please export one at a time for now.': '将所有日记导出为 Word 会创建多个文件，请一次导出一条。',
+  'Exporting all diaries to PDF format will create separate files. Please export one at a time for now.': '将所有日记导出为 PDF 会创建多个文件，请一次导出一条。',
+  'Export failed. Please try again.': '导出失败，请重试。',
+
+  // Import modal extras
+  'Import JSON': '导入 JSON',
+  'Supported formats list': 'JSON、Markdown（.md）、HTML、TXT、Word（.docx）、PDF',
+  'Enter URL:': '请输入网址：',
+
+  // Editor toolbar
+  'Undo': '撤销',
+  'Redo': '重做',
+  'Bold': '加粗',
+  'Italic': '斜体',
+  'Underline': '下划线',
+  'Strikethrough': '删除线',
+  'Code': '代码',
+  'Heading 1': '标题 1',
+  'Heading 2': '标题 2',
+  'Heading 3': '标题 3',
+  'Bullet List': '无序列表',
+  'Ordered List': '有序列表',
+  'Task List': '任务列表',
+  'Quote': '引用',
+  'Code Block': '代码块',
+  'Add Link': '添加链接',
+  'Add Image': '添加图片',
+  'Insert Table': '插入表格',
+  'Horizontal Rule': '水平分割线',
+
+  // Detect type labels (upper-case keys used for mapping)
+  'JSON': 'JSON',
+  'MARKDOWN': 'Markdown',
+  'HTML': 'HTML',
+  'TXT': 'TXT',
+  'DOCX': 'Word',
+  'PDF': 'PDF',
+  'UNKNOWN': '未知',
+
+  // Misc
+  'No diaries': '没有日记',
+  'Search': '搜索',
+};
+
+export function t(key: string): string {
+  return translations[key] ?? key;
+}
+
+export default t;
