@@ -72,7 +72,12 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ items, className }) => {
                     <button
                       key={j}
                       role="menuitem"
-                      onClick={() => { c.onClick && c.onClick(); setOpen(false); }}
+                      onClick={() => {
+                        if (c.onClick) {
+                          c.onClick();
+                        }
+                        setOpen(false);
+                      }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                     >
                       {c.label}

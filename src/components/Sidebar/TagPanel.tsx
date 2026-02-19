@@ -34,10 +34,12 @@ export const TagPanel: React.FC<TagPanelProps> = ({
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<string>('');
   const [newTagName, setNewTagName] = useState('');
   const [selectedForMerge, setSelectedForMerge] = useState<string[]>([]);
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
+  const [deletingTag, setDeletingTag] = useState<string>('');
 
   const getDefaultTagColor = (tag: string) => {
     const colors = [
@@ -100,6 +102,20 @@ export const TagPanel: React.FC<TagPanelProps> = ({
     setIsMergeModalOpen(true);
   };
 
+  const openDeleteModal = (tag: string) => {
+    setDeletingTag(tag);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteTag = () => {
+    if (!deletingTag) {
+      return;
+    }
+    onDeleteTag(deletingTag);
+    setDeletingTag('');
+    setIsDeleteModalOpen(false);
+  };
+
   const toggleMergeSelection = (tag: string) => {
     setSelectedForMerge(prev =>
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
@@ -132,12 +148,14 @@ export const TagPanel: React.FC<TagPanelProps> = ({
             {t('Tags')}
           </h2>
           {selectedTags.length > 0 && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={onClearTags}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="text-sm"
             >
               {t('Clear')}
-            </button>
+            </Button>
           )}
         </div>
         {tagStats.length > 0 && (
@@ -201,9 +219,7 @@ export const TagPanel: React.FC<TagPanelProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm(`Delete tag "${name}"?`)) {
-                        onDeleteTag(name);
-                      }
+                      openDeleteModal(name);
                     }}
                     className="p-1 hover:bg-white/50 rounded"
                     title={t('Delete')}
@@ -244,6 +260,35 @@ export const TagPanel: React.FC<TagPanelProps> = ({
               setIsRenameModalOpen(false);
               setEditingTag('');
               setNewTagName('');
+            }}
+            className="flex-1"
+          >
+            {t('Cancel')}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Delete Tag Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeletingTag('');
+        }}
+        title={t('Delete Tag')}
+      >
+        <p className="text-gray-600 mb-4">
+          {t('Delete tag confirm').replace('{tag}', deletingTag)}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="danger" onClick={handleDeleteTag} className="flex-1">
+            {t('Delete')}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setIsDeleteModalOpen(false);
+              setDeletingTag('');
             }}
             className="flex-1"
           >

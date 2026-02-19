@@ -1,10 +1,6 @@
 import React, { useCallback } from 'react';
-import { Editor } from '@tiptap/react';
+import { Editor, useEditorState } from '@tiptap/react';
 import {
-  Bold,
-  Italic,
-  Underline as UnderlineIcon,
-  Strikethrough,
   Code,
   Heading1,
   Heading2,
@@ -19,15 +15,54 @@ import {
   Minus,
   Undo,
   Redo,
+  Zap,
 } from 'lucide-react';
 
 import { t } from '../../i18n';
 
 interface EditorToolbarProps {
   editor: Editor;
+  onAnalyze?: () => void;
 }
 
-export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
+type ToolbarButtonProps = {
+  onClick: () => void;
+  isActive?: boolean;
+  children: React.ReactNode;
+  title: string;
+};
+
+const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, isActive, children, title }) => (
+  <button
+    onClick={onClick}
+    title={title}
+    className={`p-2 rounded hover:bg-gray-100 transition-colors ${
+      isActive ? 'bg-gray-200 text-blue-600' : 'text-gray-700'
+    }`}
+  >
+    {children}
+  </button>
+);
+
+export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor, onAnalyze }) => {
+  const maxUsedHeading = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => {
+      let maxLevel = 0;
+      currentEditor.state.doc.descendants((node) => {
+        if (node.type.name === 'heading') {
+          const level = Number(node.attrs.level || 0);
+          if (level > maxLevel) {
+            maxLevel = level;
+          }
+        }
+      });
+      return maxLevel;
+    },
+  });
+
+  const maxVisibleHeadingLevel = Math.min(6, Math.max(3, maxUsedHeading + 1));
+
   const addImage = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -57,25 +92,31 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   }, [editor]);
 
-  const ToolbarButton: React.FC<{
-    onClick: () => void;
-    isActive?: boolean;
-    children: React.ReactNode;
-    title: string;
-  }> = ({ onClick, isActive, children, title }) => (
-    <button
-      onClick={onClick}
-      title={title}
-      className={`p-2 rounded hover:bg-gray-100 transition-colors ${
-        isActive ? 'bg-gray-200 text-blue-600' : 'text-gray-700'
-      }`}
-    >
-      {children}
-    </button>
-  );
+  const renderHeadingIcon = (level: number) => {
+    const iconProps = { size: 18 };
+    const baseClass = 'font-semibold flex items-center justify-center w-5 h-5';
+    
+    if (level === 1) {
+      return <Heading1 {...iconProps} />;
+    }
+    if (level === 2) {
+      return <Heading2 {...iconProps} />;
+    }
+    if (level === 3) {
+      return <Heading3 {...iconProps} />;
+    }
+    
+    // H4-H6 显示统一的标题图标风格
+    return (
+      <span className={baseClass}>
+        <span className="text-xs">H{level}</span>
+      </span>
+    );
+  };
 
   return (
-    <div className="border-b border-gray-200 p-2 flex flex-wrap gap-1 bg-gray-50">
+    <>
+      <div className="border-b border-gray-200 p-2 flex flex-wrap gap-1 bg-gray-50">
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}
         title={t('Undo')}
@@ -91,65 +132,16 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
 
       <div className="w-px h-6 bg-gray-300 mx-1" />
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        isActive={editor.isActive('bold')}
-        title={t('Bold')}
-      >
-        <Bold size={18} />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        isActive={editor.isActive('italic')}
-        title={t('Italic')}
-      >
-        <Italic size={18} />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
-        isActive={editor.isActive('underline')}
-        title={t('Underline')}
-      >
-        <UnderlineIcon size={18} />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        isActive={editor.isActive('strike')}
-        title={t('Strikethrough')}
-      >
-        <Strikethrough size={18} />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCode().run()}
-        isActive={editor.isActive('code')}
-        title={t('Code')}
-      >
-        <Code size={18} />
-      </ToolbarButton>
-
-      <div className="w-px h-6 bg-gray-300 mx-1" />
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        isActive={editor.isActive('heading', { level: 1 })}
-        title={t('Heading 1')}
-      >
-        <Heading1 size={18} />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        isActive={editor.isActive('heading', { level: 2 })}
-        title={t('Heading 2')}
-      >
-        <Heading2 size={18} />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        isActive={editor.isActive('heading', { level: 3 })}
-        title={t('Heading 3')}
-      >
-        <Heading3 size={18} />
-      </ToolbarButton>
+      {Array.from({ length: maxVisibleHeadingLevel }, (_, index) => index + 1).map((level) => (
+        <ToolbarButton
+          key={level}
+          onClick={() => editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run()}
+          isActive={editor.isActive('heading', { level })}
+          title={t(`Heading ${level}`)}
+        >
+          {renderHeadingIcon(level)}
+        </ToolbarButton>
+      ))}
 
       <div className="w-px h-6 bg-gray-300 mx-1" />
 
@@ -209,6 +201,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
       >
         <Minus size={18} />
       </ToolbarButton>
-    </div>
+
+      {/* AI analyze */}
+      <ToolbarButton
+        onClick={() => onAnalyze && onAnalyze()}
+        title={t('Analyze')}
+      >
+        <Zap size={18} />
+      </ToolbarButton>
+      </div>
+    </>
   );
 };

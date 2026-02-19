@@ -5,6 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vite.dev/config/
 export default defineConfig({
   base: './',
+  server: {
+    port: 5177,
+    strictPort: true, // 如果端口被占用则报错，而不是自动切换到其他端口
+  },
   plugins: [
     react(),
     VitePWA({

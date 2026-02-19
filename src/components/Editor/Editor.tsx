@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import type { AnyExtension } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import * as UnderlineExtension from '@tiptap/extension-underline';
 import * as StrikeExtension from '@tiptap/extension-strike';
@@ -15,31 +16,41 @@ import * as HighlightExtension from '@tiptap/extension-highlight';
 import * as TextStyleExtension from '@tiptap/extension-text-style';
 import * as ColorExtension from '@tiptap/extension-color';
 import { EditorToolbar } from './EditorToolbar';
+import { TextBubbleMenu } from './TextBubbleMenu';
 
-const Underline = (UnderlineExtension as any).default || UnderlineExtension.Underline || UnderlineExtension;
-const Strike = (StrikeExtension as any).default || StrikeExtension.Strike || StrikeExtension;
-const Link = (LinkExtension as any).default || LinkExtension.Link || LinkExtension;
-const Image = (ImageExtension as any).default || ImageExtension.Image || ImageExtension;
-const Table = (TableExtension as any).default || TableExtension.Table || TableExtension;
-const TableRow = (TableRowExtension as any).default || TableRowExtension.TableRow || TableRowExtension;
-const TableCell = (TableCellExtension as any).default || TableCellExtension.TableCell || TableCellExtension;
-const TableHeader = (TableHeaderExtension as any).default || TableHeaderExtension.TableHeader || TableHeaderExtension;
-const TaskList = (TaskListExtension as any).default || TaskListExtension.TaskList || TaskListExtension;
-const TaskItem = (TaskItemExtension as any).default || TaskItemExtension.TaskItem || TaskItemExtension;
-const Highlight = (HighlightExtension as any).default || HighlightExtension.Highlight || HighlightExtension;
-const TextStyle = (TextStyleExtension as any).default || TextStyleExtension.TextStyle || TextStyleExtension;
-const Color = (ColorExtension as any).default || ColorExtension.Color || ColorExtension;
+const getExtension = (moduleExports: unknown, namedExport: string): AnyExtension => {
+  const exportsRecord = moduleExports as Record<string, unknown>;
+  return (exportsRecord.default ?? exportsRecord[namedExport] ?? moduleExports) as AnyExtension;
+};
+
+const Underline = getExtension(UnderlineExtension, 'Underline');
+const Strike = getExtension(StrikeExtension, 'Strike');
+const Link = getExtension(LinkExtension, 'Link');
+const Image = getExtension(ImageExtension, 'Image');
+const Table = getExtension(TableExtension, 'Table');
+const TableRow = getExtension(TableRowExtension, 'TableRow');
+const TableCell = getExtension(TableCellExtension, 'TableCell');
+const TableHeader = getExtension(TableHeaderExtension, 'TableHeader');
+const TaskList = getExtension(TaskListExtension, 'TaskList');
+const TaskItem = getExtension(TaskItemExtension, 'TaskItem');
+const Highlight = getExtension(HighlightExtension, 'Highlight');
+const TextStyle = getExtension(TextStyleExtension, 'TextStyle');
+const Color = getExtension(ColorExtension, 'Color');
 
 interface EditorProps {
   content: string;
   onChange: (content: string) => void;
   editable?: boolean;
+  onAnalyze?: () => void;
+  contentRightPanel?: React.ReactNode;
 }
 
 export const Editor: React.FC<EditorProps> = ({
   content,
   onChange,
   editable = true,
+  onAnalyze,
+  contentRightPanel,
 }) => {
   const editor = useEditor({
     extensions: [
@@ -86,6 +97,18 @@ export const Editor: React.FC<EditorProps> = ({
       attributes: {
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none max-w-none',
       },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          const { state, dispatch } = view;
+          const { $from } = state.selection;
+          const indent = '　'; // 1个中文全角空格
+          const tr = state.tr.insertText(indent, $from.pos, $from.pos);
+          dispatch(tr);
+          return true;
+        }
+        return false;
+      },
     },
   });
 
@@ -101,9 +124,13 @@ export const Editor: React.FC<EditorProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {editable && <EditorToolbar editor={editor} />}
-      <div className="flex-1 overflow-y-auto">
-        <EditorContent editor={editor} className="h-full" />
+      {editable && <EditorToolbar editor={editor} onAnalyze={onAnalyze} />}
+      {editable && <TextBubbleMenu editor={editor} />}
+      <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-y-auto">
+          <EditorContent editor={editor} className="h-full" />
+        </div>
+        {contentRightPanel}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDiaries } from '../../hooks/useDiaries';
 import { useFolders } from '../../hooks/useFolders';
 import { FolderTree } from '../Sidebar/FolderTree';
@@ -6,11 +6,17 @@ import { TagPanel } from '../Sidebar/TagPanel';
 import { CalendarView } from '../Sidebar/CalendarView';
 import { DiaryList } from '../Sidebar/DiaryList';
 import { Editor } from '../Editor/Editor';
+import { TableOfContents } from '../Editor/TableOfContents';
 import { Input } from '../UI/Input';
 import { TagInput } from '../UI/TagInput';
 import { ExportModal } from '../UI/ExportModal';
 import { ImportModal } from '../UI/ImportModal';
-import { BookOpen, Download, Upload, Tag as TagIcon, Folder as FolderIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { BookOpen, Download, Upload, Tag as TagIcon, Folder as FolderIcon, Calendar as CalendarIcon, Settings, ListChecks, Zap, Lock, LockOpen, List } from 'lucide-react';
+import { TaskList } from '../Sidebar/TaskList';
+import { AiSettingsModal } from '../UI/AiSettingsModal';
+import { AnalysisPanel } from '../Analysis/AnalysisPanel';
+import { ToastHost } from '../UI/ToastHost';
+import { getDiaryWordCount } from '../../utils/text';
 
 import { t } from '../../i18n';
 
@@ -23,6 +29,7 @@ export const AppLayout: React.FC = () => {
     createDiary,
     updateDiary,
     deleteDiary,
+    moveDiary,
     setCurrentDiaryId,
     searchDiaries,
     importDiaries,
@@ -32,25 +39,18 @@ export const AppLayout: React.FC = () => {
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [diaryTitle, setDiaryTitle] = useState('');
-  const [diaryContent, setDiaryContent] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [leftPanelView, setLeftPanelView] = useState<'folders' | 'tags' | 'calendar'>('folders');
-
-  useEffect(() => {
-    if (currentDiary) {
-      setDiaryTitle(currentDiary.title);
-      setDiaryContent(currentDiary.content);
-    } else {
-      setDiaryTitle('');
-      setDiaryContent('');
-    }
-  }, [currentDiary]);
+  const [leftPanelView, setLeftPanelView] = useState<'folders' | 'tags' | 'calendar' | 'tasks'>('folders');
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [isLeftSidebarExpanded, setIsLeftSidebarExpanded] = useState(false);
+  const [isLeftSidebarPinned, setIsLeftSidebarPinned] = useState(false);
+  const [showTableOfContents, setShowTableOfContents] = useState(true);
+  const [hasTaskListModalOpen, setHasTaskListModalOpen] = useState(false);
 
   const handleTitleChange = useCallback(
     (newTitle: string) => {
-      setDiaryTitle(newTitle);
       if (currentDiaryId) {
         updateDiary(currentDiaryId, { title: newTitle });
       }
@@ -60,12 +60,21 @@ export const AppLayout: React.FC = () => {
 
   const handleContentChange = useCallback(
     (newContent: string) => {
-      setDiaryContent(newContent);
       if (currentDiaryId) {
         updateDiary(currentDiaryId, { content: newContent });
       }
     },
     [currentDiaryId, updateDiary]
+  );
+
+  const handleAppendToDiary = useCallback(
+    (content: string) => {
+      if (currentDiaryId && currentDiary) {
+        const newContent = currentDiary.content + content;
+        updateDiary(currentDiaryId, { content: newContent });
+      }
+    },
+    [currentDiaryId, currentDiary, updateDiary]
   );
 
   const handleCreateDiary = () => {
@@ -138,77 +147,160 @@ export const AppLayout: React.FC = () => {
     ? diaries.filter(diary => selectedTags.every(tag => diary.tags.includes(tag)))
     : diaries;
 
-  const wordCount = diaryContent
-    ? diaryContent.replace(/<[^>]*>/g, '').split(/\s+/).filter(Boolean).length
-    : 0;
+  const diaryTitle = currentDiary?.title ?? '';
+  const diaryContent = currentDiary?.content ?? '';
+
+  const wordCount = getDiaryWordCount(diaryContent);
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <div className="w-64 flex-shrink-0 flex flex-col">
-        <div className="flex border-b border-gray-200 bg-white">
+      <div
+        className={`flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out overflow-hidden ${
+          isLeftSidebarPinned || isLeftSidebarExpanded ? 'w-64' : 'w-12'
+        }`}
+        onMouseEnter={() => !isLeftSidebarPinned && setIsLeftSidebarExpanded(true)}
+        onMouseLeave={() => {
+          // Don't collapse if focus is on a modal element or if TaskList has modal open
+          if (hasTaskListModalOpen) return;
+          const activeElement = document.activeElement;
+          const isModalFocused = activeElement && (activeElement.closest('.fixed') || activeElement.closest('[role="dialog"]'));
+          if (!isLeftSidebarPinned && !isModalFocused) {
+            setIsLeftSidebarExpanded(false);
+          }
+        }}
+      >
+        {/* Sidebar Header Tabs */}
+        <div
+          className={`flex border-gray-200 bg-white ${
+            isLeftSidebarPinned || isLeftSidebarExpanded
+              ? 'flex-row border-b'
+              : 'flex-col border-r'
+          }`}
+        >
           <button
             onClick={() => setLeftPanelView('folders')}
-            className={`flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium transition-colors ${
+            className={`flex items-center justify-center gap-1 font-medium transition-colors ${
+              isLeftSidebarPinned || isLeftSidebarExpanded
+                ? 'flex-1 py-3 text-xs whitespace-nowrap'
+                : 'flex-col w-12 h-12'
+            } ${
               leftPanelView === 'folders'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? isLeftSidebarPinned || isLeftSidebarExpanded
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-blue-600 border-r-2 border-blue-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             <FolderIcon size={14} />
-            {t('Folders')}
+            {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Folders')}
           </button>
           <button
             onClick={() => setLeftPanelView('tags')}
-            className={`flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium transition-colors ${
+            className={`flex items-center justify-center gap-1 font-medium transition-colors ${
+              isLeftSidebarPinned || isLeftSidebarExpanded
+                ? 'flex-1 py-3 text-xs whitespace-nowrap'
+                : 'flex-col w-12 h-12'
+            } ${
               leftPanelView === 'tags'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? isLeftSidebarPinned || isLeftSidebarExpanded
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-blue-600 border-r-2 border-blue-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             <TagIcon size={14} />
-            {t('Tags')}
+            {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Tags')}
           </button>
           <button
             onClick={() => setLeftPanelView('calendar')}
-            className={`flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium transition-colors ${
+            className={`flex items-center justify-center gap-1 font-medium transition-colors ${
+              isLeftSidebarPinned || isLeftSidebarExpanded
+                ? 'flex-1 py-3 text-xs whitespace-nowrap'
+                : 'flex-col w-12 h-12'
+            } ${
               leftPanelView === 'calendar'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? isLeftSidebarPinned || isLeftSidebarExpanded
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-blue-600 border-r-2 border-blue-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             <CalendarIcon size={14} />
-            {t('Calendar')}
+            {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Calendar')}
+          </button>
+          <button
+            onClick={() => setLeftPanelView('tasks')}
+            className={`flex items-center justify-center gap-1 font-medium transition-colors ${
+              isLeftSidebarPinned || isLeftSidebarExpanded
+                ? 'flex-1 py-3 text-xs whitespace-nowrap'
+                : 'flex-col w-12 h-12'
+            } ${
+              leftPanelView === 'tasks'
+                ? isLeftSidebarPinned || isLeftSidebarExpanded
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-blue-600 border-r-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ListChecks size={14} />
+            {(isLeftSidebarPinned || isLeftSidebarExpanded) && t('Tasks')}
           </button>
         </div>
-        <div className="flex-1 overflow-hidden">
-          {leftPanelView === 'folders' ? (
-            <FolderTree
-              folders={folders}
-              onCreateFolder={handleCreateFolder}
-              onUpdateFolder={handleUpdateFolder}
-              onDeleteFolder={deleteFolder}
-              selectedFolderId={selectedFolderId}
-              onSelectFolder={setSelectedFolderId}
-            />
-          ) : leftPanelView === 'tags' ? (
-            <TagPanel
-              diaries={diaries}
-              selectedTags={selectedTags}
-              onSelectTag={handleSelectTag}
-              onClearTags={handleClearTags}
-              onRenameTag={handleRenameTag}
-              onMergeTags={handleMergeTags}
-              onDeleteTag={handleDeleteTag}
-            />
-          ) : (
-            <CalendarView
-              diaries={diaries}
-              onSelectDiary={setCurrentDiaryId}
-              onCreateDiary={handleCreateDiaryForDate}
-              onChangeDiaryDate={handleChangeDiaryDate}
-            />
-          )}
-        </div>
+
+        {/* Sidebar Content */}
+        {(isLeftSidebarPinned || isLeftSidebarExpanded) && (
+          <div className="flex-1 overflow-hidden">
+            {leftPanelView === 'folders' ? (
+              <FolderTree
+                folders={folders}
+                onCreateFolder={handleCreateFolder}
+                onUpdateFolder={handleUpdateFolder}
+                onDeleteFolder={deleteFolder}
+                onMoveDiary={moveDiary}
+                selectedFolderId={selectedFolderId}
+                onSelectFolder={setSelectedFolderId}
+              />
+            ) : leftPanelView === 'tags' ? (
+              <TagPanel
+                diaries={diaries}
+                selectedTags={selectedTags}
+                onSelectTag={handleSelectTag}
+                onClearTags={handleClearTags}
+                onRenameTag={handleRenameTag}
+                onMergeTags={handleMergeTags}
+                onDeleteTag={handleDeleteTag}
+              />
+            ) : leftPanelView === 'calendar' ? (
+              <CalendarView
+                diaries={diaries}
+                onSelectDiary={setCurrentDiaryId}
+                onCreateDiary={handleCreateDiaryForDate}
+                onChangeDiaryDate={handleChangeDiaryDate}
+              />
+            ) : (
+              <TaskList onModalStateChange={setHasTaskListModalOpen} />
+            )}
+          </div>
+        )}
+
+        {/* Pin Button */}
+        {(isLeftSidebarPinned || isLeftSidebarExpanded) && (
+          <div
+            className={`border-gray-200 bg-white transition-all duration-300 ${
+              isLeftSidebarPinned || isLeftSidebarExpanded
+                ? 'border-t p-2 flex justify-end'
+                : 'hidden'
+            }`}
+          >
+            <button
+              onClick={() => setIsLeftSidebarPinned(!isLeftSidebarPinned)}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+              title={isLeftSidebarPinned ? t('Unpin') : t('Pin')}
+            >
+              {isLeftSidebarPinned ? <Lock size={16} /> : <LockOpen size={16} />}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="w-80 flex-shrink-0">
@@ -218,9 +310,11 @@ export const AppLayout: React.FC = () => {
           onSelectDiary={setCurrentDiaryId}
           onCreateDiary={handleCreateDiary}
           onDeleteDiary={deleteDiary}
+          onMoveDiary={moveDiary}
           searchQuery={searchQuery}
           onSearch={searchDiaries}
           selectedFolderId={selectedFolderId}
+          folders={folders}
         />
       </div>
 
@@ -254,6 +348,34 @@ export const AppLayout: React.FC = () => {
                     <Download size={20} />
                     <span className="sr-only">{t('Export')}</span>
                   </button>
+                  <button
+                    onClick={() => setIsAnalysisOpen(true)}
+                    className="ml-2 p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    title={t('Analyze current diary')}
+                    aria-label={t('Analyze current diary')}
+                  >
+                    <Zap size={18} />
+                  </button>
+                  <button
+                    onClick={() => setShowTableOfContents(!showTableOfContents)}
+                    className={`ml-2 p-2 rounded-lg transition-colors ${
+                      showTableOfContents
+                        ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                    title={t('Toggle Table of Contents')}
+                    aria-label={t('Toggle Table of Contents')}
+                  >
+                    <List size={18} />
+                  </button>
+                  <button
+                    onClick={() => setIsAiSettingsOpen(true)}
+                    className="ml-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+                    title={t('AI Settings')}
+                    aria-label={t('AI Settings')}
+                  >
+                    <Settings size={18} />
+                  </button>
                 </div>
               </div>
               <div className="mt-3 mb-2">
@@ -271,12 +393,24 @@ export const AppLayout: React.FC = () => {
                 </span>
               </div>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <Editor
-                content={diaryContent}
-                onChange={handleContentChange}
-                editable={true}
-              />
+            <div className="flex-1 overflow-hidden flex">
+              <div className="flex-1 flex flex-col">
+                <Editor
+                  content={diaryContent}
+                  onChange={handleContentChange}
+                  editable={true}
+                  onAnalyze={() => setIsAnalysisOpen(true)}
+                  contentRightPanel={
+                    showTableOfContents ? (
+                      <div className="group h-full w-10 hover:w-72 transition-all duration-300 ease-in-out border-l border-gray-300 bg-gray-100 overflow-hidden flex-shrink-0 relative z-10">
+                        <div className="h-full opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                          <TableOfContents content={diaryContent} />
+                        </div>
+                      </div>
+                    ) : null
+                  }
+                />
+              </div>
             </div>
           </>
         ) : (
@@ -325,6 +459,18 @@ export const AppLayout: React.FC = () => {
         onImportDiaries={(d, opts) => importDiaries(d, opts)}
         onImportFolders={(f, opts) => importFolders(f, opts)}
       />
+
+      <AiSettingsModal isOpen={isAiSettingsOpen} onClose={() => setIsAiSettingsOpen(false)} />
+
+      <AnalysisPanel
+        isOpen={isAnalysisOpen}
+        diaryId={currentDiaryId}
+        diaryContent={diaryContent}
+        onClose={() => setIsAnalysisOpen(false)}
+        onAppendToDiary={handleAppendToDiary}
+      />
+
+      <ToastHost />
     </div>
   );
 };

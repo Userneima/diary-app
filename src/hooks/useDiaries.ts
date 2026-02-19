@@ -1,20 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Diary } from '../types';
 import { storage } from '../utils/storage';
 
 export const useDiaries = () => {
-  const [diaries, setDiaries] = useState<Diary[]>([]);
-  const [currentDiaryId, setCurrentDiaryId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
+  const [diaries, setDiaries] = useState<Diary[]>(() => storage.getDiaries());
+  const [currentDiaryId, setCurrentDiaryId] = useState<string | null>(() => {
     const loadedDiaries = storage.getDiaries();
-    setDiaries(loadedDiaries);
-    if (loadedDiaries.length > 0 && !currentDiaryId) {
-      setCurrentDiaryId(loadedDiaries[0].id);
-    }
-  }, []);
+    return loadedDiaries.length > 0 ? loadedDiaries[0].id : null;
+  });
+  const [searchQuery, setSearchQuery] = useState('');
 
   const createDiary = useCallback((folderId: string | null = null) => {
     const newDiary: Diary = {
@@ -62,15 +57,16 @@ export const useDiaries = () => {
       const existing = storage.getDiaries();
       const map = new Map<string, Diary>(existing.map(d => [d.id, d]));
       imported.forEach(d => {
+        const normalized = {
+          ...d,
+          id: d.id || uuidv4(),
+        };
         // Ensure id exists
-        if (!d.id) {
-          d.id = uuidv4();
-        }
-        if (map.has(d.id)) {
+        if (map.has(normalized.id)) {
           // Overwrite existing with imported
-          map.set(d.id, { ...map.get(d.id)!, ...d });
+          map.set(normalized.id, { ...map.get(normalized.id)!, ...normalized });
         } else {
-          map.set(d.id, d);
+          map.set(normalized.id, normalized);
         }
       });
       const merged = Array.from(map.values()).sort((a, b) => b.updatedAt - a.updatedAt);

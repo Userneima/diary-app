@@ -5,12 +5,14 @@ import { Button } from '../UI/Button';
 import { Modal } from '../UI/Modal';
 import { Input } from '../UI/Input';
 import { t } from '../../i18n';
+import { showToast } from '../../utils/toast';
 
 interface FolderTreeProps {
   folders: Folder[];
   onCreateFolder: (name: string, parentId: string | null) => void;
   onUpdateFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => void;
+  onMoveDiary: (diaryId: string, folderId: string | null) => void;
   selectedFolderId: string | null;
   onSelectFolder: (id: string | null) => void;
 }
@@ -20,6 +22,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   onCreateFolder,
   onUpdateFolder,
   onDeleteFolder,
+  onMoveDiary,
   selectedFolderId,
   onSelectFolder,
 }) => {
@@ -29,6 +32,24 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   const [newFolderName, setNewFolderName] = useState('');
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+
+  const getDraggedDiaryId = (e: React.DragEvent): string | null => {
+    const diaryId = e.dataTransfer.getData('application/x-diary-id');
+    return diaryId || null;
+  };
+
+  const handleDropToFolder = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault();
+    const diaryId = getDraggedDiaryId(e);
+    if (!diaryId) {
+      setDragOverTarget(null);
+      return;
+    }
+    onMoveDiary(diaryId, folderId);
+    showToast(t('Diary moved successfully'), 'success');
+    setDragOverTarget(null);
+  };
 
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
@@ -86,10 +107,18 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         <button
           onClick={() => onSelectFolder(null)}
           className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-            selectedFolderId === null
+            dragOverTarget === 'all'
+              ? 'bg-blue-100 text-blue-800'
+              : selectedFolderId === null
               ? 'bg-blue-50 text-blue-700'
               : 'hover:bg-gray-100 text-gray-700'
           }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOverTarget('all');
+          }}
+          onDragLeave={() => setDragOverTarget(null)}
+          onDrop={(e) => handleDropToFolder(e, null)}
         >
           {t('All Diaries')}
         </button>
@@ -100,10 +129,18 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           <div key={folder.id} className="mb-1">
             <div
               className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors group ${
-                selectedFolderId === folder.id
+                dragOverTarget === folder.id
+                  ? 'bg-blue-100 text-blue-800'
+                  : selectedFolderId === folder.id
                   ? 'bg-blue-50 text-blue-700'
                   : 'hover:bg-gray-100 text-gray-700'
               }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOverTarget(folder.id);
+              }}
+              onDragLeave={() => setDragOverTarget(null)}
+              onDrop={(e) => handleDropToFolder(e, folder.id)}
             >
               <div
                 className="flex items-center flex-1"

@@ -1,15 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Folder } from '../types';
 import { storage } from '../utils/storage';
 
 export const useFolders = () => {
-  const [folders, setFolders] = useState<Folder[]>([]);
-
-  useEffect(() => {
-    const loadedFolders = storage.getFolders();
-    setFolders(loadedFolders);
-  }, []);
+  const [folders, setFolders] = useState<Folder[]>(() => storage.getFolders());
 
   const createFolder = useCallback((name: string, parentId: string | null = null) => {
     const newFolder: Folder = {
@@ -43,13 +38,14 @@ export const useFolders = () => {
       const existing = storage.getFolders();
       const map = new Map(existing.map(f => [f.id, f]));
       imported.forEach(f => {
-        if (!f.id) {
-          f.id = uuidv4();
-        }
-        if (map.has(f.id)) {
-          map.set(f.id, { ...map.get(f.id)!, ...f });
+        const normalized = {
+          ...f,
+          id: f.id || uuidv4(),
+        };
+        if (map.has(normalized.id)) {
+          map.set(normalized.id, { ...map.get(normalized.id)!, ...normalized });
         } else {
-          map.set(f.id, f);
+          map.set(normalized.id, normalized);
         }
       });
       const merged = Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);

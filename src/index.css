@@ -51,6 +51,25 @@ body {
   margin: 0.75rem 0 0.5rem;
 }
 
+.ProseMirror h4 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.7rem 0 0.5rem;
+}
+
+.ProseMirror h5 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0.6rem 0 0.5rem;
+}
+
+.ProseMirror h6 {
+  font-size: 0.95em;
+  font-weight: 600;
+  margin: 0.5rem 0 0.5rem;
+  color: #374151;
+}
+
 .ProseMirror ul,
 .ProseMirror ol {
   padding-left: 1.5rem;

@@ -5,6 +5,48 @@ import { v4 as uuidv4 } from 'uuid';
 import { t } from '../../i18n';
 import { storage } from '../../utils/storage';
 import { ModalFooter } from './ModalFooter';
+import { showToast } from '../../utils/toast';
+import { Button } from './Button';
+
+type BackupItem = { timestamp: number; diaries: Diary[]; folders: Folder[] };
+type JsonRecord = Record<string, unknown>;
+
+const isJsonRecord = (value: unknown): value is JsonRecord => {
+  return typeof value === 'object' && value !== null;
+};
+
+const toDiary = (value: unknown, fallbackTitle: string): Diary => {
+  const record = isJsonRecord(value) ? value : {};
+  return {
+    id: typeof record.id === 'string' && record.id ? record.id : uuidv4(),
+    title: typeof record.title === 'string' && record.title ? record.title : fallbackTitle,
+    content: typeof record.content === 'string' ? record.content : '',
+    folderId: typeof record.folderId === 'string' ? record.folderId : null,
+    tags: Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+    createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
+    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : Date.now(),
+  };
+};
+
+const toFolder = (value: unknown): Folder => {
+  const record = isJsonRecord(value) ? value : {};
+  return {
+    id: typeof record.id === 'string' && record.id ? record.id : uuidv4(),
+    name: typeof record.name === 'string' && record.name ? record.name : 'Folder',
+    parentId: typeof record.parentId === 'string' ? record.parentId : null,
+    color: typeof record.color === 'string' ? record.color : undefined,
+    createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
+  };
+};
+
+type MammothModule = {
+  convertToHtml: (input: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>;
+};
+
+type PdfTextItem = { str?: string };
+type PdfPageLike = { getTextContent: () => Promise<{ items: PdfTextItem[] }> };
+type PdfDocumentLike = { numPages: number; getPage: (pageNumber: number) => Promise<PdfPageLike> };
+type PdfJsModule = { getDocument: (input: { data: ArrayBuffer }) => { promise: Promise<PdfDocumentLike> } };
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -23,24 +65,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const [isImporting, setIsImporting] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [fileStatuses, setFileStatuses] = useState<Record<string, string>>({});
-  const [backups, setBackups] = useState<{ timestamp: number; diaries: any[]; folders: any[] }[]>([]);
+  const [backups] = useState<BackupItem[]>(() => storage.getBackups());
 
   const reset = () => {
     setFiles([]);
     setFileStatuses({});
     setReplaceExisting(false);
   };
-
-  React.useEffect(() => {
-    if (isOpen) {
-      try {
-        setBackups(storage.getBackups());
-      } catch (err) {
-        console.warn('failed to load backups', err);
-        setBackups([]);
-      }
-    }
-  }, [isOpen]);
 
   const detectType = (name: string) => {
     const n = name.toLowerCase();
@@ -87,7 +118,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     md = md.replace(/`([^`]+)`/gim, '<code>$1</code>');
 
     // Lists (basic)
-    md = md.replace(/(^|\n)\s*[-\*+] (.+)/gim, '$1<li>$2</li>');
+    md = md.replace(/(^|\n)\s*[-*+] (.+)/gim, '$1<li>$2</li>');
     md = md.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>');
 
     // Paragraphs split by double newlines
@@ -104,7 +135,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     try {
       // Use dynamic variable import to avoid Vite static resolution when package is not installed
       const pkg = 'mammoth';
-      const mammoth = await import(/* @vite-ignore */ pkg as any);
+      const mammoth = await import(/* @vite-ignore */ pkg) as unknown as MammothModule;
       const res = await mammoth.convertToHtml({ arrayBuffer });
       return res.value;
     } catch (err) {
@@ -116,14 +147,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const parsePdf = async (arrayBuffer: ArrayBuffer) => {
     try {
       const pkg = 'pdfjs-dist/build/pdf';
-      const pdfjsLib = await import(/* @vite-ignore */ pkg as any);
-      // @ts-ignore set workerSrc if necessary (pdfjs-dist auto-handles in many setups)
+      const pdfjsLib = await import(/* @vite-ignore */ pkg) as unknown as PdfJsModule;
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let fullText = '';
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        const strings = content.items.map((s: any) => s.str);
+        const strings = content.items.map((item) => item.str ?? '');
         fullText += strings.join(' ') + '\n\n';
       }
       // Simple paragraphs
@@ -148,90 +178,53 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     try {
       if (type === 'json') {
         const text = await readAsText(file);
-        const parsed = JSON.parse(text);
+        const parsed: unknown = JSON.parse(text);
         if (Array.isArray(parsed)) {
           if (parsed.length === 0) return { diaries: [] };
           const first = parsed[0];
-          if (first && (first.content !== undefined || first.title !== undefined)) {
+          if (isJsonRecord(first) && (first.content !== undefined || first.title !== undefined)) {
             // diaries
-            const diaries = parsed.map((d: any) => ({
-              id: d.id || uuidv4(),
-              title: d.title || file.name.replace(/\.json$/i, ''),
-              content: d.content || '',
-              folderId: d.folderId || null,
-              tags: d.tags || [],
-              createdAt: d.createdAt || Date.now(),
-              updatedAt: d.updatedAt || Date.now(),
-            })) as Diary[];
+            const diaries = parsed.map((d) => toDiary(d, file.name.replace(/\.json$/i, '')));
             return { diaries };
           }
-          if (first && (first.name !== undefined || first.parentId !== undefined)) {
-            const folders = parsed.map((f: any) => ({
-              id: f.id || uuidv4(),
-              name: f.name || 'Folder',
-              parentId: f.parentId || null,
-              color: f.color,
-              createdAt: f.createdAt || Date.now(),
-            })) as Folder[];
+          if (isJsonRecord(first) && (first.name !== undefined || first.parentId !== undefined)) {
+            const folders = parsed.map((f) => toFolder(f));
             return { folders };
           }
           // Unknown array, try treat as diaries
-          const diaries = parsed.map((d: any) => ({
-            id: d.id || uuidv4(),
-            title: d.title || file.name.replace(/\.json$/i, ''),
-            content: d.content || JSON.stringify(d, null, 2),
-            folderId: d.folderId || null,
-            tags: d.tags || [],
-            createdAt: d.createdAt || Date.now(),
-            updatedAt: d.updatedAt || Date.now(),
-          })) as Diary[];
+          const diaries = parsed.map((d) => {
+            const diary = toDiary(d, file.name.replace(/\.json$/i, ''));
+            if (diary.content) {
+              return diary;
+            }
+            return {
+              ...diary,
+              content: JSON.stringify(d, null, 2),
+            };
+          });
           return { diaries };
-        } else if (typeof parsed === 'object') {
+        } else if (isJsonRecord(parsed)) {
           // full data object with diaries/folders
-          const p: any = parsed;
+          const p = parsed;
           if ((Array.isArray(p.diaries) || Array.isArray(p.folders)) && (p.diaries || p.folders)) {
-            const diaries = Array.isArray(p.diaries) ? p.diaries.map((d: any) => ({
-              id: d.id || uuidv4(),
-              title: d.title || 'Untitled',
-              content: d.content || '',
-              folderId: d.folderId || null,
-              tags: d.tags || [],
-              createdAt: d.createdAt || Date.now(),
-              updatedAt: d.updatedAt || Date.now(),
-            })) : [];
+            const diaries = Array.isArray(p.diaries)
+              ? p.diaries.map((d) => toDiary(d, 'Untitled'))
+              : [];
 
-            const folders = Array.isArray(p.folders) ? p.folders.map((f: any) => ({
-              id: f.id || uuidv4(),
-              name: f.name || 'Folder',
-              parentId: f.parentId || null,
-              color: f.color,
-              createdAt: f.createdAt || Date.now(),
-            })) : [];
+            const folders = Array.isArray(p.folders)
+              ? p.folders.map((f) => toFolder(f))
+              : [];
 
             return { diaries, folders };
           }
 
           // single diary or folder
           if (p && (p.content !== undefined || p.title !== undefined)) {
-            const d: Diary = {
-              id: p.id || uuidv4(),
-              title: p.title || file.name.replace(/\.json$/i, ''),
-              content: p.content || '',
-              folderId: p.folderId || null,
-              tags: p.tags || [],
-              createdAt: p.createdAt || Date.now(),
-              updatedAt: p.updatedAt || Date.now(),
-            };
+            const d: Diary = toDiary(p, file.name.replace(/\.json$/i, ''));
             return { diaries: [d] };
           }
           if (p && (p.name !== undefined || p.parentId !== undefined)) {
-            const fo: Folder = {
-              id: p.id || uuidv4(),
-              name: p.name || 'Folder',
-              parentId: p.parentId || null,
-              color: p.color,
-              createdAt: p.createdAt || Date.now(),
-            };
+            const fo: Folder = toFolder(p);
             return { folders: [fo] };
           }
         }
@@ -349,7 +342,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   };
 
   const handleImport = async () => {
-    if (files.length === 0) return alert(t('请选择要导入的文件'));
+    if (files.length === 0) {
+      showToast(t('请选择要导入的文件'), 'error');
+      return;
+    }
     setIsImporting(true);
     const allDiaries: Diary[] = [];
     const allFolders: Folder[] = [];
@@ -374,7 +370,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
           statuses[f.name] = `${res.folders.length} 个文件夹`;
         }
         setFileStatuses({ ...statuses });
-      } catch (err) {
+      } catch {
         statuses[f.name] = t('Error');
         setFileStatuses({ ...statuses });
       }
@@ -396,15 +392,15 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         onImportDiaries(allDiaries, { replace: replaceExisting });
       }
       if (allDiaries.length === 0 && allFolders.length === 0) {
-        alert('未能解析到任何可导入的数据');
+        showToast(t('No importable data found'), 'error');
       } else {
-        alert(t('Imported successfully'));
+        showToast(t('Imported successfully'), 'success');
         onClose();
         reset();
       }
     } catch (err) {
       console.error(err);
-      alert('导入过程中出错，请检查控制台');
+      showToast(t('Import failed. Please try again.'), 'error');
     } finally {
       setIsImporting(false);
     }
@@ -459,20 +455,22 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                     <div className="text-xs text-gray-500">{(b.diaries?.length || 0)} {t('Diaries')}, {(b.folders?.length || 0)} {t('Folders')}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      className="text-sm px-2 py-1 bg-red-50 text-red-700 rounded"
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={() => {
                         const ok = window.confirm(t('This will replace existing data. Are you sure?'));
                         if (!ok) return;
                         onImportFolders(b.folders || [], { replace: true });
                         onImportDiaries(b.diaries || [], { replace: true });
-                        alert(t('Imported successfully'));
+                        showToast(t('Imported successfully'), 'success');
                         onClose();
                         reset();
                       }}
-                    >{t('Restore backup')}</button>
-                    <button
-                      className="text-sm px-2 py-1 bg-gray-50 rounded"
+                    >{t('Restore backup')}</Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => {
                         const blob = new Blob([JSON.stringify({ diaries: b.diaries || [], folders: b.folders || [] }, null, 2)], { type: 'application/json' });
                         const url = URL.createObjectURL(blob);
@@ -484,7 +482,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
                       }}
-                    >{t('Download backup')}</button>
+                    >{t('Download backup')}</Button>
                   </div>
                 </div>
               ))}

@@ -1,4 +1,4 @@
-import type { Diary, Folder } from '../types';
+import type { Diary, Folder, Task, AnalysisResult } from '../types';
 
 type Backup = {
   timestamp: number;
@@ -10,6 +10,12 @@ const DIARIES_KEY = 'diaries';
 const FOLDERS_KEY = 'folders';
 const BACKUPS_KEY = 'diaries_backups';
 const MAX_BACKUPS = 10;
+
+type StorageObject = Record<string, unknown>;
+
+const asStorageObject = (value: unknown): StorageObject => {
+  return typeof value === 'object' && value !== null ? (value as StorageObject) : {};
+};
 
 export const storage = {
   // Diaries
@@ -91,6 +97,79 @@ export const storage = {
     this.saveDiaries(updatedDiaries);
   },
 
+  // Tasks (new)
+  getTasks(): Task[] {
+    const data = localStorage.getItem('tasks');
+    if (!data) return [];
+
+    const tasks = JSON.parse(data) as unknown;
+    if (!Array.isArray(tasks)) {
+      return [];
+    }
+    // Data migration: add new fields to old tasks
+    return tasks.map((task) => {
+      const taskRecord = asStorageObject(task);
+      return {
+        ...taskRecord,
+        taskType: taskRecord.taskType || 'long-term',
+        startDate: taskRecord.startDate || null,
+        endDate: taskRecord.endDate || null,
+        completedAt: taskRecord.completedAt || null,
+      } as Task;
+    });
+  },
+
+  saveTasks(tasks: Task[]): void {
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+  },
+
+  addTask(task: Task): void {
+    const tasks = this.getTasks();
+    tasks.push(task);
+    this.saveTasks(tasks);
+  },
+
+  updateTask(id: string, updates: Partial<Task>): void {
+    const tasks = this.getTasks();
+    const index = tasks.findIndex(t => t.id === id);
+    if (index !== -1) {
+      tasks[index] = { ...tasks[index], ...updates };
+      this.saveTasks(tasks);
+    }
+  },
+
+  deleteTask(id: string): void {
+    const tasks = this.getTasks();
+    this.saveTasks(tasks.filter(t => t.id !== id));
+  },
+
+  // AI settings (store user's Gemini free API key and optional DeepSeek settings locally)
+  getAiSettings(): { geminiApiKey?: string | null; deepseekKey?: string | null; deepseekBaseUrl?: string | null; deepseekModel?: string | null } {
+    const data = localStorage.getItem('ai_settings');
+    return data ? JSON.parse(data) : {};
+  },
+
+  saveAiSettings(settings: { geminiApiKey?: string | null; deepseekKey?: string | null; deepseekBaseUrl?: string | null; deepseekModel?: string | null }): void {
+    localStorage.setItem('ai_settings', JSON.stringify(settings));
+  },
+
+  // Analysis results
+  getAnalyses(): AnalysisResult[] {
+    const data = localStorage.getItem('analyses');
+    return data ? JSON.parse(data) : [];
+  },
+
+  addAnalysis(a: AnalysisResult): void {
+    const arr = this.getAnalyses();
+    arr.push(a);
+    localStorage.setItem('analyses', JSON.stringify(arr));
+  },
+
+  saveAnalyses(arr: AnalysisResult[]): void {
+    localStorage.setItem('analyses', JSON.stringify(arr));
+  },
+
+
   // Backups
   getBackups(): Backup[] {
     const data = localStorage.getItem(BACKUPS_KEY);
@@ -134,10 +213,11 @@ export const storage = {
     return { diaries: this.getDiaries(), folders: this.getFolders() };
   },
 
-  importAllData(data: any, options?: { replace?: boolean }) {
+  importAllData(data: unknown, options?: { replace?: boolean }) {
     try {
-      const incomingDiaries: Diary[] = Array.isArray(data.diaries) ? data.diaries : [];
-      const incomingFolders: Folder[] = Array.isArray(data.folders) ? data.folders : [];
+      const incoming = asStorageObject(data);
+      const incomingDiaries: Diary[] = Array.isArray(incoming.diaries) ? incoming.diaries as Diary[] : [];
+      const incomingFolders: Folder[] = Array.isArray(incoming.folders) ? incoming.folders as Folder[] : [];
 
       if (options?.replace) {
         this.saveFolders(incomingFolders);

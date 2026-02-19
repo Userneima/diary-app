@@ -11,6 +11,7 @@ import html2canvas from 'html2canvas';
 import { t } from '../../i18n';
 import { storage } from '../../utils/storage';
 import { ModalFooter } from './ModalFooter';
+import { showToast } from '../../utils/toast';
 
 
 
@@ -30,6 +31,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [exportType, setExportType] = useState<'current' | 'all'>('current');
   const [format, setFormat] = useState<'markdown' | 'html' | 'json' | 'docx' | 'pdf'>('markdown');
   const [isExporting, setIsExporting] = useState(false);
+
+  const getFormatButtonClass = (targetFormat: 'markdown' | 'html' | 'json' | 'docx' | 'pdf') => {
+    return `p-3 border rounded-lg flex flex-col items-center gap-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+      format === targetFormat
+        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+        : 'hover:bg-gray-50 text-gray-700'
+    }`;
+  };
 
   const convertToMarkdown = (diary: Diary): string => {
     const date = formatDate(diary.createdAt);
@@ -351,7 +360,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       }
     } catch (err) {
       console.error('exportAllData failed', err);
-      alert(t('Export failed. Please try again.'));
+      showToast(t('Export failed. Please try again.'), 'error');
     }
   };
 
@@ -361,7 +370,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       const diariesToExport = exportType === 'current' && currentDiary ? [currentDiary] : diaries;
 
       if (diariesToExport.length === 0) {
-        alert('No diaries to export');
+        showToast(t('No diaries to export'), 'error');
         return;
       }
 
@@ -399,22 +408,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         } else {
           // Export all diaries as separate Word files would be complex
           // For now, export as a single combined document
-          alert(t('Exporting all diaries to Word format will create separate files. Please export one at a time for now.'));
+          showToast(t('Exporting all diaries to Word format will create separate files. Please export one at a time for now.'), 'info');
           return;
         }
       } else if (format === 'pdf') {
         if (exportType === 'current' && currentDiary) {
           await convertToPDF(currentDiary);
         } else {
-          alert(t('Exporting all diaries to PDF format will create separate files. Please export one at a time for now.'));
+          showToast(t('Exporting all diaries to PDF format will create separate files. Please export one at a time for now.'), 'info');
           return;
         }
       }
 
+      showToast(t('Export completed'), 'success');
       onClose();
     } catch (error) {
       console.error('Export error:', error);
-      alert(t('Export failed. Please try again.'));
+      showToast(t('Export failed. Please try again.'), 'error');
     } finally {
       setIsExporting(false);
     }
@@ -485,55 +495,43 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               onClick={() => setFormat('markdown')}
               role="button"
               aria-pressed={format === 'markdown'}
-              className={`p-3 border rounded-lg flex flex-col items-center gap-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
-                format === 'markdown'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'hover:bg-gray-50'
-              }`}
+              className={getFormatButtonClass('markdown')}
             >
               <FileText size={24} />
               <span className="text-sm font-medium">{t('Markdown')}</span>
             </button>
             <button
               onClick={() => setFormat('html')}
-              className={`p-3 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
-                format === 'html'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'hover:bg-gray-50'
-              }`}
+              role="button"
+              aria-pressed={format === 'html'}
+              className={getFormatButtonClass('html')}
             >
               <Code size={24} />
               <span className="text-sm font-medium">{t('HTML')}</span>
             </button>
             <button
               onClick={() => setFormat('json')}
-              className={`p-3 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
-                format === 'json'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'hover:bg-gray-50'
-              }`}
+              role="button"
+              aria-pressed={format === 'json'}
+              className={getFormatButtonClass('json')}
             >
               <FileJson size={24} />
               <span className="text-sm font-medium">{t('JSON')}</span>
             </button>
             <button
               onClick={() => setFormat('docx')}
-              className={`p-3 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
-                format === 'docx'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'hover:bg-gray-50'
-              }`}
+              role="button"
+              aria-pressed={format === 'docx'}
+              className={getFormatButtonClass('docx')}
             >
               <FileType size={24} />
               <span className="text-sm font-medium">{t('Word')}</span>
             </button>
             <button
               onClick={() => setFormat('pdf')}
-              className={`p-3 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
-                format === 'pdf'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'hover:bg-gray-50'
-              }`}
+              role="button"
+              aria-pressed={format === 'pdf'}
+              className={getFormatButtonClass('pdf')}
             >
               <File size={24} />
               <span className="text-sm font-medium">{t('PDF')}</span>
